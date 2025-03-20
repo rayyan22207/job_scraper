@@ -45,7 +45,6 @@ def scrape_linkedin(keyword, location):
     driver.quit()
     return jobs
 
-
 def scrape_indeed(keyword, location):
     driver = init_driver()
     url = f"https://www.indeed.com/jobs?q={keyword}&l={location}"
@@ -62,17 +61,17 @@ def scrape_indeed(keyword, location):
     soup = BeautifulSoup(driver.page_source, "html.parser")
     jobs = []
 
-    for job_card in soup.find_all("div", class_="cardOutline"):
-        title_elem = job_card.find("h2", class_="jobTitle")
-        title = title_elem.text.strip() if title_elem else "N/A"
-        company_elem = job_card.find("span", class_="companyName")
-        company = company_elem.text.strip() if company_elem else "N/A"
-        location_elem = job_card.find("div", class_="companyLocation")
-        location = location_elem.text.strip() if location_elem else "N/A"
-        link_elem = job_card.find("a", class_="jcs-JobTitle")
-        link = f"https://www.indeed.com{link_elem['href']}" if link_elem else "N/A"
+    for job_card in soup.find_all("div", class_="job_seen_beacon"):  # Updated class name
+        try:
+            title = job_card.find("h2", class_="jobTitle").text.strip()
+            company = job_card.find("span", class_="companyName").text.strip()
+            location = job_card.find("div", class_="companyLocation").text.strip()
+            link = "https://www.indeed.com" + job_card.find("a", class_="jcs-JobTitle")["href"]
 
-        jobs.append({"Title": title, "Company": company, "Location": location, "Link": link})
+            jobs.append({"Title": title, "Company": company, "Location": location, "Link": link})
+        except AttributeError as e:
+            print(f'Problem at indeed: {e}')
+            continue  # Skip job cards with missing data
 
     driver.quit()
     return jobs
@@ -93,21 +92,20 @@ def scrape_glassdoor(keyword, location):
     soup = BeautifulSoup(driver.page_source, "html.parser")
     jobs = []
 
-    for job_card in soup.find_all("li", class_="react-job-listing"):
-        title_elem = job_card.find("a", class_="jobLink")
-        title = title_elem.text.strip() if title_elem else "N/A"
-        company_elem = job_card.find("div", class_="d-flex justify-content-between align-items-start")
-        company = company_elem.text.strip() if company_elem else "N/A"
-        location_elem = job_card.find("span", class_="pr-xxsm")
-        location = location_elem.text.strip() if location_elem else "N/A"
-        link_elem = job_card.find("a", class_="jobLink")
-        link = f"https://www.glassdoor.com{link_elem['href']}" if link_elem else "N/A"
+    for job_card in soup.find_all("li", class_="react-job-listing"):  # Updated class name
+        try:
+            title = job_card.find("a", class_="jobLink").text.strip()
+            company = job_card.find("div", class_="d-flex justify-content-between align-items-start").text.strip()
+            location = job_card.find("span", class_="pr-xxsm").text.strip()
+            link = "https://www.glassdoor.com" + job_card.find("a", class_="jobLink")["href"]
 
-        jobs.append({"Title": title, "Company": company, "Location": location, "Link": link})
+            jobs.append({"Title": title, "Company": company, "Location": location, "Link": link})
+        except AttributeError as e:
+            print(f'Problem at indeed: {e}')
+            continue  # Skip job cards with missing data
 
     driver.quit()
     return jobs
-
 
 # Function to save jobs to CSV
 def save_to_csv(jobs, filename="jobs.csv"):
@@ -120,7 +118,10 @@ def save_to_pdf(jobs, filename="jobs.pdf"):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=10)
     pdf.add_page()
-    pdf.set_font("Arial", size=12)  # FPDF defaults to 'latin-1', but Arial supports more characters
+
+    # Use a Unicode-compatible font (FreeSans)
+    pdf.add_font("FreeSans", "", "FreeSans.ttf", uni=True)
+    pdf.set_font("FreeSans", size=12)
 
     pdf.cell(200, 10, txt="Job Listings", ln=True, align="C")
 
@@ -128,11 +129,12 @@ def save_to_pdf(jobs, filename="jobs.pdf"):
         pdf.cell(200, 10, txt=f"Title: {job['Title']}", ln=True)
         pdf.cell(200, 10, txt=f"Company: {job['Company']}", ln=True)
         pdf.cell(200, 10, txt=f"Location: {job['Location']}", ln=True)
-        pdf.multi_cell(0, 10, txt=f"Link: {job['Link']}")  # Use multi_cell for long links
+        pdf.multi_cell(0, 10, txt=f"Link: {job['Link']}")  # Wrap long links
         pdf.cell(200, 10, txt="---------------------------------------", ln=True)
 
     pdf.output(filename, "F")
     print(f"Jobs saved to {filename}")
+
 
 
 # Run the scraper
