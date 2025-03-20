@@ -5,6 +5,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.common.keys import Keys
 from bs4 import BeautifulSoup
 from fpdf import FPDF
 
@@ -44,12 +45,19 @@ def scrape_linkedin(keyword, location):
     driver.quit()
     return jobs
 
-# Function to scrape Indeed jobs using Selenium
+
 def scrape_indeed(keyword, location):
     driver = init_driver()
     url = f"https://www.indeed.com/jobs?q={keyword}&l={location}"
     driver.get(url)
-    time.sleep(5)
+
+    time.sleep(5)  # Let the page load
+
+    # Scroll down to load more jobs
+    body = driver.find_element(By.TAG_NAME, "body")
+    for _ in range(3):  # Scroll multiple times
+        body.send_keys(Keys.PAGE_DOWN)
+        time.sleep(2)
 
     soup = BeautifulSoup(driver.page_source, "html.parser")
     jobs = []
@@ -69,12 +77,18 @@ def scrape_indeed(keyword, location):
     driver.quit()
     return jobs
 
-# Function to scrape Glassdoor jobs using Selenium
 def scrape_glassdoor(keyword, location):
     driver = init_driver()
     url = f"https://www.glassdoor.com/Job/jobs.htm?sc.keyword={keyword}&locT=C&locId={location}"
     driver.get(url)
-    time.sleep(5)
+
+    time.sleep(5)  # Let page load
+
+    # Scroll down to load more jobs
+    body = driver.find_element(By.TAG_NAME, "body")
+    for _ in range(3):  # Scroll multiple times
+        body.send_keys(Keys.PAGE_DOWN)
+        time.sleep(2)
 
     soup = BeautifulSoup(driver.page_source, "html.parser")
     jobs = []
@@ -94,6 +108,7 @@ def scrape_glassdoor(keyword, location):
     driver.quit()
     return jobs
 
+
 # Function to save jobs to CSV
 def save_to_csv(jobs, filename="jobs.csv"):
     df = pd.DataFrame(jobs)
@@ -105,7 +120,7 @@ def save_to_pdf(jobs, filename="jobs.pdf"):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=10)
     pdf.add_page()
-    pdf.set_font("Arial", size=12, encoding="utf-8")
+    pdf.set_font("Arial", size=12)  # FPDF defaults to 'latin-1', but Arial supports more characters
 
     pdf.cell(200, 10, txt="Job Listings", ln=True, align="C")
 
@@ -113,11 +128,12 @@ def save_to_pdf(jobs, filename="jobs.pdf"):
         pdf.cell(200, 10, txt=f"Title: {job['Title']}", ln=True)
         pdf.cell(200, 10, txt=f"Company: {job['Company']}", ln=True)
         pdf.cell(200, 10, txt=f"Location: {job['Location']}", ln=True)
-        pdf.cell(200, 10, txt=f"Link: {job['Link']}", ln=True)
+        pdf.multi_cell(0, 10, txt=f"Link: {job['Link']}")  # Use multi_cell for long links
         pdf.cell(200, 10, txt="---------------------------------------", ln=True)
 
-    pdf.output(filename)
+    pdf.output(filename, "F")
     print(f"Jobs saved to {filename}")
+
 
 # Run the scraper
 if __name__ == "__main__":
@@ -126,15 +142,20 @@ if __name__ == "__main__":
 
     print("Fetching jobs from LinkedIn...")
     linkedin_jobs = scrape_linkedin(keyword, location)
+    print(f"Found {len(linkedin_jobs)} jobs on Linkedin")
 
     print("Fetching jobs from Indeed...")
     indeed_jobs = scrape_indeed(keyword, location)
+    print(f"Found {len(indeed_jobs)} jobs on Indeed")
+
 
     print("Fetching jobs from Glassdoor...")
     glassdoor_jobs = scrape_glassdoor(keyword, location)
+    print(f"Found {len(glassdoor_jobs)} jobs on Glassdoor")
 
-    all_jobs = linkedin_jobs + indeed_jobs + glassdoor_jobs
-
+    all_jobs = (linkedin_jobs if linkedin_jobs else []) + \
+           (indeed_jobs if indeed_jobs else []) + \
+           (glassdoor_jobs if glassdoor_jobs else [])
     if all_jobs:
         save_to_csv(all_jobs)
         save_to_pdf(all_jobs)
